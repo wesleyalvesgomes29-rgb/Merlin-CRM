@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { Client, Tag, ClientStatus } from '../types';
 import { getClientAlerts, getDaysSinceContact } from '../lib/storage';
 import { 
@@ -15,9 +15,27 @@ import {
   CheckCircle,
   AlertTriangle,
   FolderMinus,
-  Edit2
+  Edit2,
+  Upload,
+  Download,
+  Check,
+  AlertCircle,
+  FileSpreadsheet,
+  X
 } from 'lucide-react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
+import * as XLSX from 'xlsx';
+
+interface ImportedRow {
+  name: string;
+  phone: string;
+  email?: string;
+  empreendimento?: string;
+  origem?: string;
+  status: ClientStatus;
+  notes: string;
+  valid: boolean;
+}
 
 interface ClientDirectoryProps {
   clients: Client[];
@@ -26,6 +44,15 @@ interface ClientDirectoryProps {
   onAddClient: () => void;
   onDeleteClient: (id: string) => void;
   onCreateTag: (name: string, color: string) => void;
+  onImportClients: (importedList: {
+    name: string;
+    phone: string;
+    email?: string;
+    empreendimento?: string;
+    origem?: string;
+    status: ClientStatus;
+    notes: string;
+  }[]) => void;
 }
 
 export default function ClientDirectory({
@@ -34,7 +61,8 @@ export default function ClientDirectory({
   onSelectClient,
   onAddClient,
   onDeleteClient,
-  onCreateTag
+  onCreateTag,
+  onImportClients
 }: ClientDirectoryProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTagFilter, setSelectedTagFilter] = useState<string>('all');
@@ -42,6 +70,11 @@ export default function ClientDirectory({
   const [showTagCreator, setShowTagCreator] = useState(false);
   const [newTagName, setNewTagName] = useState('');
   const [newTagColor, setNewTagColor] = useState('bg-teal-100 text-teal-800 border-teal-300');
+
+  // Excel Import / Export States
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [previewRows, setPreviewRows] = useState<ImportedRow[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // WhatsApp-style soft colors list for selection
   const TAG_COLOR_PRESETS = [
@@ -60,6 +93,111 @@ export default function ClientDirectory({
     onCreateTag(newTagName.trim(), newTagColor);
     setNewTagName('');
     setShowTagCreator(false);
+  };
+
+  // EXCEL IMPORT & EXPORT HANDLERS
+  const handleExportExcel = () => {
+    try {
+      const dataToExport = clients.map(c => ({
+        'Nome': c.name,
+        'Telefone': c.phone,
+        'Email': c.email || '',
+        'Empreendimento': c.empreendimento || '',
+        'Origem': c.origem || '',
+        'Status': c.status,
+        'Observações': c.notes || ''
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(dataToExport);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Leads');
+      XLSX.writeFile(wb, 'Leads_Merlin_Data.xlsx');
+    } catch (error) {
+      console.error(error);
+      alert('Ocorreu um erro ao exportar os dados para Excel.');
+    }
+  };
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const workbook = XLSX.read(bstr, { type: 'binary' });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        const rawData = XLSX.utils.sheet_to_json<any>(worksheet);
+
+        if (rawData.length === 0) {
+          alert('A planilha importada está vazia.');
+          return;
+        }
+
+        const parsedRows: ImportedRow[] = rawData.map((row: any) => {
+          // Robust mapping of column headers in Portuguese or English
+          const name = row['Nome'] || row['nome'] || row['Name'] || row['name'] || '';
+          const phone = row['Telefone'] || row['telefone'] || row['Phone'] || row['phone'] || '';
+          const email = row['Email'] || row['email'] || row['Mail'] || row['mail'] || '';
+          const empreendimento = row['Empreendimento'] || row['empreendimento'] || row['Imóvel'] || row['imovel'] || '';
+          const origem = row['Origem'] || row['origem'] || row['Source'] || row['source'] || '';
+          const statusRaw = row['Status'] || row['status'] || 'Lead Novo';
+          const notes = row['Observações'] || row['observações'] || row['Notes'] || row['notes'] || '';
+
+          const validStatuses: ClientStatus[] = [
+            'Lead Novo', 'Contato', 'Em Atendimento', 'Retrabalho', 'Agendado',
+            'Visitou', 'Proposta', 'Documentação', 'Venda Fechada', 'Perdido'
+          ];
+          const status = validStatuses.includes(statusRaw) ? statusRaw as ClientStatus : 'Lead Novo';
+
+          return {
+            name: String(name).trim(),
+            phone: String(phone).trim(),
+            email: email ? String(email).trim() : undefined,
+            empreendimento: empreendimento ? String(empreendimento).trim() : undefined,
+            origem: origem ? String(origem).trim() : undefined,
+            status,
+            notes: notes ? String(notes).trim() : '',
+            valid: !!String(name).trim() && !!String(phone).trim()
+          };
+        });
+
+        setPreviewRows(parsedRows);
+        setShowPreviewModal(true);
+      } catch (err) {
+        console.error(err);
+        alert('Erro ao processar o arquivo Excel. Certifique-se de que é uma planilha válida.');
+      }
+    };
+    reader.readAsBinaryString(file);
+    e.target.value = ''; // clear input
+  };
+
+  const handleConfirmImport = () => {
+    const validRows = previewRows.filter(r => r.valid);
+    if (validRows.length === 0) {
+      alert('Nenhum lead válido para importação. O Nome e Telefone são campos obrigatórios.');
+      return;
+    }
+
+    onImportClients(validRows.map(r => ({
+      name: r.name,
+      phone: r.phone,
+      email: r.email,
+      empreendimento: r.empreendimento,
+      origem: r.origem,
+      status: r.status,
+      notes: r.notes
+    })));
+
+    setShowPreviewModal(false);
+    alert(`${validRows.length} leads importados com sucesso!`);
   };
 
   // Instant filtering
@@ -91,6 +229,35 @@ export default function ClientDirectory({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {/* Hidden File Input for Excel Import */}
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            accept=".xlsx, .xls"
+            className="hidden"
+          />
+
+          {/* Importar Excel */}
+          <button
+            onClick={handleImportClick}
+            className="border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer"
+            title="Importar Leads de planilha Excel"
+          >
+            <Upload className="h-4 w-4 text-emerald-500" />
+            <span>Importar Excel</span>
+          </button>
+
+          {/* Exportar Excel */}
+          <button
+            onClick={handleExportExcel}
+            className="border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer"
+            title="Exportar todos os Leads para planilha Excel"
+          >
+            <Download className="h-4 w-4 text-teal-500" />
+            <span>Exportar Excel</span>
+          </button>
+
           {/* Custom tag manager trigger */}
           <button
             onClick={() => setShowTagCreator(!showTagCreator)}
@@ -359,6 +526,124 @@ export default function ClientDirectory({
           </div>
         )}
       </div>
+
+      {/* Excel Preview Modal */}
+      <AnimatePresence>
+        {showPreviewModal && (
+          <div 
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4"
+            onClick={() => setShowPreviewModal(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-4xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800 animate-in fade-in zoom-in-95 duration-200"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-950">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-xl animate-pulse">
+                    <FileSpreadsheet className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-bold text-slate-800 dark:text-slate-100">Prévia da Importação Excel</h2>
+                    <p className="text-xs text-slate-500">Confira abaixo os dados lidos da planilha antes de salvar no CRM</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowPreviewModal(false)}
+                  className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-all cursor-pointer"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              {/* Grid / Table Container */}
+              <div className="flex-1 overflow-auto p-6 space-y-4">
+                <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-800 text-[10px] uppercase font-bold text-slate-500">
+                        <th className="p-3">Status</th>
+                        <th className="p-3">Nome</th>
+                        <th className="p-3">Telefone</th>
+                        <th className="p-3">Email</th>
+                        <th className="p-3">Empreendimento</th>
+                        <th className="p-3">Origem</th>
+                        <th className="p-3">Etapa do Funil</th>
+                        <th className="p-3">Observações</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-850 text-xs">
+                      {previewRows.map((row, index) => (
+                        <tr 
+                          key={index}
+                          className={`${row.valid ? 'hover:bg-slate-50/50 dark:hover:bg-slate-950/20' : 'bg-red-50/30 dark:bg-red-950/10'}`}
+                        >
+                          <td className="p-3 font-semibold">
+                            {row.valid ? (
+                              <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                                <Check className="h-3.5 w-3.5" /> Válido
+                              </span>
+                            ) : (
+                              <span className="text-red-600 dark:text-red-400 flex items-center gap-1" title="Nome e Telefone são obrigatórios">
+                                <AlertCircle className="h-3.5 w-3.5 animate-bounce" /> Inválido
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-3 font-medium text-slate-800 dark:text-slate-200 max-w-[120px] truncate">{row.name || <span className="italic text-red-400">Ausente</span>}</td>
+                          <td className="p-3 font-mono text-slate-700 dark:text-slate-300 max-w-[120px] truncate">{row.phone || <span className="italic text-red-400">Ausente</span>}</td>
+                          <td className="p-3 text-slate-600 dark:text-slate-400 max-w-[120px] truncate">{row.email || <span className="text-slate-400 dark:text-slate-600">-</span>}</td>
+                          <td className="p-3 text-slate-600 dark:text-slate-400 max-w-[120px] truncate">{row.empreendimento || <span className="text-slate-400 dark:text-slate-600">-</span>}</td>
+                          <td className="p-3 text-slate-600 dark:text-slate-400 max-w-[120px] truncate">{row.origem || <span className="text-slate-400 dark:text-slate-600">-</span>}</td>
+                          <td className="p-3">
+                            <span className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold px-2 py-0.5 rounded-md text-[10px] uppercase">
+                              {row.status}
+                            </span>
+                          </td>
+                          <td className="p-3 text-slate-500 dark:text-slate-500 max-w-[180px] truncate" title={row.notes}>{row.notes || <span className="text-slate-400 dark:text-slate-600">-</span>}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {previewRows.some(r => !r.valid) && (
+                  <p className="text-xs text-red-500 mt-3 flex items-center gap-1.5">
+                    <AlertCircle className="h-4 w-4" />
+                    Atenção: Linhas marcadas como "Inválido" não serão importadas por falta de Nome ou Telefone.
+                  </p>
+                )}
+              </div>
+
+              {/* Actions Footer */}
+              <div className="p-5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-950">
+                <span className="text-xs text-slate-500">
+                  Total de leads válidos para importar: <strong>{previewRows.filter(r => r.valid).length}</strong> de {previewRows.length}
+                </span>
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setShowPreviewModal(false)}
+                    className="border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer transition-all"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleConfirmImport}
+                    className="bg-emerald-500 hover:bg-emerald-600 text-white px-5 py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 shadow-xs cursor-pointer transition-all"
+                  >
+                    <Check className="h-4 w-4" />
+                    <span>Confirmar Importação</span>
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

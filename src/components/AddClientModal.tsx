@@ -13,6 +13,9 @@ interface AddClientModalProps {
     notes: string;
     status: ClientStatus;
     tags: string[];
+    email?: string;
+    empreendimento?: string;
+    origem?: string;
   }) => void;
 }
 
@@ -27,6 +30,9 @@ export default function AddClientModal({
   const [notes, setNotes] = useState('');
   const [status, setStatus] = useState<ClientStatus>(initialStatus);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [email, setEmail] = useState('');
+  const [empreendimento, setEmpreendimento] = useState('');
+  const [origem, setOrigem] = useState('');
 
   const handleToggleTag = (tagName: string) => {
     if (selectedTags.includes(tagName)) {
@@ -48,7 +54,10 @@ export default function AddClientModal({
       phone: phone.trim(),
       notes: notes.trim(),
       status,
-      tags: selectedTags
+      tags: selectedTags,
+      email: email.trim() || undefined,
+      empreendimento: empreendimento.trim() || undefined,
+      origem: origem.trim() || undefined
     });
   };
 
@@ -130,6 +139,32 @@ export default function AddClientModal({
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Email */}
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Email</label>
+              <input
+                type="email"
+                placeholder="Ex: roberto@gmail.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full text-xs bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg p-2.5 text-slate-800 dark:text-slate-100 focus:outline-hidden focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
+              />
+            </div>
+
+            {/* Empreendimento */}
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Empreendimento de Interesse</label>
+              <input
+                type="text"
+                placeholder="Ex: Residencial Bela Vista"
+                value={empreendimento}
+                onChange={(e) => setEmpreendimento(e.target.value)}
+                className="w-full text-xs bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg p-2.5 text-slate-800 dark:text-slate-100 focus:outline-hidden focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Status Selector */}
             <div className="space-y-1">
               <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Etapa Inicial</label>
@@ -142,6 +177,18 @@ export default function AddClientModal({
                   <option key={st} value={st}>{st}</option>
                 ))}
               </select>
+            </div>
+
+            {/* Origem */}
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Origem do Lead</label>
+              <input
+                type="text"
+                placeholder="Ex: Instagram, Placa"
+                value={origem}
+                onChange={(e) => setOrigem(e.target.value)}
+                className="w-full text-xs bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg p-2.5 text-slate-800 dark:text-slate-100 focus:outline-hidden focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
+              />
             </div>
 
             {/* Registration Date (Info display, default to today) */}

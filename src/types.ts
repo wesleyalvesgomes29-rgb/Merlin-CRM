@@ -35,6 +35,9 @@ export interface Client {
   lastContactDate: string | null; // ISO DateTime
   history: HistoryEntry[];
   comments: CommentEntry[];
+  email?: string;
+  empreendimento?: string;
+  origem?: string;
 }
 
 export interface Tag {

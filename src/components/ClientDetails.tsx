@@ -43,6 +43,9 @@ export default function ClientDetails({
   const [contactCount, setContactCount] = useState(client.contactCount);
   const [selectedTags, setSelectedTags] = useState<string[]>(client.tags);
   const [newComment, setNewComment] = useState('');
+  const [email, setEmail] = useState(client.email || '');
+  const [empreendimento, setEmpreendimento] = useState(client.empreendimento || '');
+  const [origem, setOrigem] = useState(client.origem || '');
 
   const [isEditingGeneral, setIsEditingGeneral] = useState(false);
 
@@ -129,6 +132,9 @@ export default function ClientDetails({
           : 'Removeu data de próximo retorno'
       );
     }
+    if (email !== (client.email || '')) historyItems.push(`Alterou o email para "${email}"`);
+    if (empreendimento !== (client.empreendimento || '')) historyItems.push(`Alterou o empreendimento de interesse para "${empreendimento}"`);
+    if (origem !== (client.origem || '')) historyItems.push(`Alterou a origem do lead para "${origem}"`);
 
     const newHistory = historyItems.map(item => ({
       id: Math.random().toString(),
@@ -143,6 +149,9 @@ export default function ClientDetails({
       notes,
       status,
       nextContactDate: nextContactDate || null,
+      email: email.trim() || undefined,
+      empreendimento: empreendimento.trim() || undefined,
+      origem: origem.trim() || undefined,
       history: [...newHistory, ...client.history]
     };
 
@@ -303,6 +312,29 @@ export default function ClientDetails({
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase">Email</label>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="Ex: roberto@gmail.com"
+                      className="w-full text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-2 text-slate-800 dark:text-slate-100"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase">Empreendimento de Interesse</label>
+                    <input
+                      type="text"
+                      value={empreendimento}
+                      onChange={(e) => setEmpreendimento(e.target.value)}
+                      placeholder="Ex: Residencial Bela Vista"
+                      className="w-full text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-2 text-slate-800 dark:text-slate-100"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-1">
                     <label className="text-[10px] font-bold text-slate-400 uppercase">Etapa do Funil</label>
                     <select
                       value={status}
@@ -313,6 +345,16 @@ export default function ClientDetails({
                         <option key={st} value={st}>{st}</option>
                       ))}
                     </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase">Origem do Lead</label>
+                    <input
+                      type="text"
+                      value={origem}
+                      onChange={(e) => setOrigem(e.target.value)}
+                      placeholder="Ex: Instagram, Placa"
+                      className="w-full text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-2 text-slate-800 dark:text-slate-100"
+                    />
                   </div>
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold text-slate-400 uppercase">Próximo Retorno (Agendamento)</label>
@@ -397,6 +439,35 @@ export default function ClientDetails({
                     </div>
                   </div>
                 </div>
+
+                {(client.email || client.empreendimento || client.origem) && (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border-t border-slate-150 dark:border-slate-800/80 pt-4">
+                    {client.email && (
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase">Email</span>
+                        <p className="text-xs text-slate-800 dark:text-slate-200 font-medium mt-1 truncate" title={client.email}>
+                          {client.email}
+                        </p>
+                      </div>
+                    )}
+                    {client.empreendimento && (
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase">Empreendimento</span>
+                        <p className="text-xs text-slate-800 dark:text-slate-200 font-medium mt-1">
+                          {client.empreendimento}
+                        </p>
+                      </div>
+                    )}
+                    {client.origem && (
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase">Origem</span>
+                        <p className="text-xs text-slate-800 dark:text-slate-200 font-medium mt-1">
+                          {client.origem}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {client.notes && (
                   <div className="border-t border-slate-150 dark:border-slate-800/80 pt-4">

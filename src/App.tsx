@@ -89,6 +89,9 @@ export default function App() {
     notes: string;
     status: ClientStatus;
     tags: string[];
+    email?: string;
+    empreendimento?: string;
+    origem?: string;
   }) => {
     const newClient: Client = {
       id: 'c_' + Math.random().toString(36).substr(2, 9),
@@ -101,6 +104,9 @@ export default function App() {
       nextContactDate: null,
       contactCount: 0,
       lastContactDate: null,
+      email: clientData.email,
+      empreendimento: clientData.empreendimento,
+      origem: clientData.origem,
       history: [
         {
           id: 'h_init_' + Math.random().toString(),
@@ -195,6 +201,45 @@ export default function App() {
     };
 
     handleUpdateClient(updatedClient);
+  };
+
+  // EXCEL IMPORT CLIENTS HANDLER
+  const handleImportClients = (importedList: {
+    name: string;
+    phone: string;
+    email?: string;
+    empreendimento?: string;
+    origem?: string;
+    status: ClientStatus;
+    notes: string;
+  }[]) => {
+    const newClients: Client[] = importedList.map(item => ({
+      id: 'c_' + Math.random().toString(36).substr(2, 9),
+      name: item.name,
+      phone: item.phone,
+      createdAt: new Date().toISOString(),
+      notes: item.notes,
+      status: item.status,
+      tags: [],
+      nextContactDate: null,
+      contactCount: 0,
+      lastContactDate: null,
+      email: item.email,
+      empreendimento: item.empreendimento,
+      origem: item.origem,
+      history: [
+        {
+          id: 'h_init_' + Math.random().toString(),
+          date: new Date().toISOString(),
+          action: `Cliente importado via planilha Excel na etapa "${item.status}"`
+        }
+      ],
+      comments: []
+    }));
+
+    const updated = [...newClients, ...clients];
+    setClients(updated);
+    saveStoredClients(updated);
   };
 
   // TAG CREATION HANDLER
@@ -426,6 +471,7 @@ export default function App() {
               }}
               onDeleteClient={handleDeleteClient}
               onCreateTag={handleCreateTag}
+              onImportClients={handleImportClients}
             />
           )}
 
